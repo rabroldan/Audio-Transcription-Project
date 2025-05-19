@@ -7,6 +7,8 @@ import os
 import logging
 import numpy as np
 
+logging.basicConfig(level=logging.WARNING)
+
 logger = logging.getLogger(__name__)
 parser = argparse.ArgumentParser()
 

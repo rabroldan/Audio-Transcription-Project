@@ -23,7 +23,7 @@ def load_audio_chunk(fname, beg, end):
     end_s = int(end*16000)
     return audio[beg_s:end_s]
 
-
+logging.basicConfig(level=logging.WARNING)
 # Whisper backend
 
 class ASRBase:
@@ -475,55 +475,47 @@ class OnlineASRProcessor:
         return self.asr.sep.join(prompt[::-1]), self.asr.sep.join(t for _,_,t in non_prompt)
 
     def process_iter(self):
-        """Runs on the current audio buffer.
-        Returns: a tuple (beg_timestamp, end_timestamp, "text"), or (None, None, ""). 
-        The non-emty text is confirmed (committed) partial transcript.
+        """
+        Runs on the current audio buffer.
+        Returns: a tuple (beg_timestamp, end_timestamp, "text"), or (None, None, "").
+        The non-empty text is confirmed (committed) partial transcript.
         """
 
         prompt, non_prompt = self.prompt()
-        logger.debug(f"PROMPT: {prompt}")
-        logger.debug(f"CONTEXT: {non_prompt}")
-        logger.debug(f"transcribing {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f} seconds from {self.buffer_time_offset:2.2f}")
         res = self.asr.transcribe(self.audio_buffer, init_prompt=prompt)
 
-        # transform to [(beg,end,"word1"), ...]
+        # Transform ASR output to [(beg, end, "word1"), ...]
         tsw = self.asr.ts_words(res)
 
+        # Insert words into buffer and flush committed ones
         self.transcript_buffer.insert(tsw, self.buffer_time_offset)
         o = self.transcript_buffer.flush()
         self.commited.extend(o)
+
+        # Extract just the transcribed text
         completed = self.to_flush(o)
-        logger.debug(f">>>>COMPLETE NOW: {completed}")
+        if completed[2]:
+            logger.debug(completed[2])  # ✅ Log only the text
+
         the_rest = self.to_flush(self.transcript_buffer.complete())
-        logger.debug(f"INCOMPLETE: {the_rest}")
+        if the_rest[2]:
+            logger.debug(the_rest[2])  # ✅ Log only the text
 
-        # there is a newly confirmed text
-
-        if o and self.buffer_trimming_way == "sentence":  # trim the completed sentences
-            if len(self.audio_buffer)/self.SAMPLING_RATE > self.buffer_trimming_sec:  # longer than this
+        # Handle trimming if audio buffer gets too long
+        if o and self.buffer_trimming_way == "sentence":
+            if len(self.audio_buffer) / self.SAMPLING_RATE > self.buffer_trimming_sec:
                 self.chunk_completed_sentence()
 
-        
         if self.buffer_trimming_way == "segment":
-            s = self.buffer_trimming_sec  # trim the completed segments longer than s,
+            s = self.buffer_trimming_sec
         else:
-            s = 30 # if the audio buffer is longer than 30s, trim it
-        
-        if len(self.audio_buffer)/self.SAMPLING_RATE > s:
+            s = 30
+
+        if len(self.audio_buffer) / self.SAMPLING_RATE > s:
             self.chunk_completed_segment(res)
 
-            # alternative: on any word
-            #l = self.buffer_time_offset + len(self.audio_buffer)/self.SAMPLING_RATE - 10
-            # let's find commited word that is less
-            #k = len(self.commited)-1
-            #while k>0 and self.commited[k][1] > l:
-            #    k -= 1
-            #t = self.commited[k][1] 
-            logger.debug("chunking segment")
-            #self.chunk_at(t)
+        return completed  # return the (beg, end, "text") tuple
 
-        logger.debug(f"len of buffer now: {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f}")
-        return self.to_flush(o)
 
     def chunk_completed_sentence(self):
         if self.commited == []: return
