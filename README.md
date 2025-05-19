@@ -26,14 +26,21 @@ Install dependencies:
 pip install soundcard numpy
 pip install openai-whisper
 pip install whisper_timestamped
+▶️ Run the Client
+Use the provided runner.py to start the audio capture and streaming client:
 
-### ▶️ Run the Client
-
-Use the provided `runner.py` to start the audio capture and streaming client:
-
-```bash
+bash
+Copy
+Edit
 python runner.py
+Make sure the server (whisper_online_server.py) is running and listening on port 43007 before launching the client.
 
+📚 Reference
+If you use or extend this system, please consider citing:
+
+bibtex
+Copy
+Edit
 @inproceedings{machacek-etal-2023-turning,
     title = "Turning Whisper into Real-Time Transcription System",
     author = "Mach{\'a}{\v{c}}ek, Dominik  and
